@@ -1,8 +1,9 @@
 package io.camp.campsite.model.dto;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Id;
+import io.camp.campsite.model.entity.Zone;
 import lombok.*;
+
+import java.util.List;
 
 @Builder
 @NoArgsConstructor
@@ -106,4 +107,5 @@ public class CampSiteDto {
 
     private String modifiedtime;
 
+    private transient List<ZoneDto> zones;
 }

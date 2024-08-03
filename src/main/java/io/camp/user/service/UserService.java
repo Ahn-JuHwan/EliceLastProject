@@ -1,34 +1,36 @@
 package io.camp.user.service;
 
-import io.camp.exception.user.UserAnonymousException;
-
+import io.camp.user.jwt.JwtUserDetails;
 import io.camp.user.model.User;
 import io.camp.user.model.UserRole;
 import io.camp.user.model.dto.JoinDto;
-import io.camp.user.repository.AuthRepository;
+import io.camp.user.model.dto.RoleGetDto;
+import io.camp.user.model.dto.UserPaymentGetDto;
+import io.camp.user.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
+import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+public class UserService {
 
-    private final AuthRepository authRepository;
+    private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MailService mailService;
 
     public User getVerifiyLoginCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String email = authentication.getName();
         if (email.equals("anonymousUser")) {
-            throw new UserAnonymousException("유요한 사용자가 아닙니다.");
+            throw new RuntimeException("유요한 사용자가 아닙니다.");
         }
-        return authRepository.findByEmail(email);
+        return userRepository.findByEmail(email);
     }
 
 
@@ -45,7 +47,11 @@ public class AuthService {
     }
 
 //    @PostConstruct
-//    public void adminInit() {
+//    public void userInit() {
+//        if (userRepository.findByEmail("admin") != null) {
+//            return;
+//        }
+//
 //        User user = new User();
 //        user.setEmail("admin");
 //        user.setPassword(passwordEncoder.encode("1234"));
@@ -54,11 +60,9 @@ public class AuthService {
 //        user.setBirthday("0000-00-00");
 //        user.setPhoneNumber("000-1234-5678");
 //        user.setGender("성별");
-//        authRepository.save(user);
-//    }
+//        userRepository.save(user);
 //
-//    public void userInit() {
-//        User user = new User();
+//        user = new User();
 //        user.setEmail("user01");
 //        user.setPassword(passwordEncoder.encode("1234"));
 //        user.setRole(UserRole.USER);
@@ -66,7 +70,7 @@ public class AuthService {
 //        user.setBirthday("2000-01-01");
 //        user.setPhoneNumber("000-1111-1111");
 //        user.setGender("남성");
-//        authRepository.save(user);
+//        userRepository.save(user);
 //
 //        user = new User();
 //        user.setEmail("user02");
@@ -76,7 +80,7 @@ public class AuthService {
 //        user.setBirthday("2010-01-01");
 //        user.setPhoneNumber("000-2222-2222");
 //        user.setGender("여성");
-//        authRepository.save(user);
+//        userRepository.save(user);
 //
 //        user = new User();
 //        user.setEmail("user03");
@@ -86,12 +90,12 @@ public class AuthService {
 //        user.setBirthday("2020-01-01");
 //        user.setPhoneNumber("000-3333-3333");
 //        user.setGender("남성");
-//        authRepository.save(user);
+//        userRepository.save(user);
 //    }
 
     @Transactional
     public void join(JoinDto joinDto) {
-        if (authRepository.existsByEmail(joinDto.getEmail())) {
+        if (userRepository.existsByEmail(joinDto.getEmail())) {
             throw new RuntimeException("아이디가 중복되었습니다");
         }
 
@@ -103,8 +107,66 @@ public class AuthService {
         user.setBirthday(joinDto.getBirthday());
         user.setPhoneNumber(joinDto.getPhoneNumber());
         user.setGender(joinDto.getGender());
-        authRepository.save(user);
+        userRepository.save(user);
     }
 
+    @Transactional
+    public void updatePassword(String currentPassword, String newPassword) {
+        User user = getVerifiyLoginCurrentUser();
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new RuntimeException("현재 비밀번호가 일치하지 않습니다.");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+
+    public RoleGetDto verifyRole(JwtUserDetails jwtUserDetails) {
+        RoleGetDto roleGetDto = new RoleGetDto();
+
+        if (jwtUserDetails == null) {
+            roleGetDto.setRole(UserRole.GUEST.getKey());
+            return roleGetDto;
+        }
+
+        User user = jwtUserDetails.getUser();
+
+        if (user.getRole() == UserRole.USER) {
+            roleGetDto.setRole(UserRole.USER.getKey());
+            return roleGetDto;
+        } else if (user.getRole() == UserRole.ADMIN) {
+            roleGetDto.setRole(UserRole.ADMIN.getKey());
+            return roleGetDto;
+        }
+        return roleGetDto;
+    }
+
+    public UserPaymentGetDto getUserPayment(JwtUserDetails jwtUserDetails) {
+        UserPaymentGetDto userPaymentGetDto = new UserPaymentGetDto();
+
+        if (jwtUserDetails == null) {
+            throw  new RuntimeException("사용자 인증 실패");
+        }
+
+        User user = jwtUserDetails.getUser();
+        userPaymentGetDto.setEmail(user.getEmail());
+        userPaymentGetDto.setFullName(user.getName());
+        userPaymentGetDto.setPhoneNumber(user.getPhoneNumber());
+
+        return userPaymentGetDto;
+    }
+    @Transactional
+    public void resetPassword(String email) throws MessagingException {
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new RuntimeException("등록되지 않은 이메일입니다.");
+        }
+
+        String tempPassword = mailService.generateTemporaryPassword();
+        user.setPassword(passwordEncoder.encode(tempPassword));
+        userRepository.save(user);
+
+        mailService.sendTemporaryPassword(email, tempPassword);
+    }
 
 }
