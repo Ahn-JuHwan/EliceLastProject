@@ -79,3 +79,6 @@ pw
 배포: nginx, google cloud platform
 
 역할분담
+
+
+
