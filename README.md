@@ -73,9 +73,9 @@
 
 ## **기술스택**
 
-<br>프론트엔드: React, recoil, css
+<br>프론트엔드: React, Recoil, CSS
 <br>백엔드: Spring boot, Spring security, Mysql, JWT
-<br>배포: nginx, google cloud platform
+<br>배포: Nginx, GCP
 
 
 
@@ -84,4 +84,7 @@
 
 ## ERD
 ![ERD](erd.png)
+
+## Swagger
+[Swagger](http://localhost:8080/swagger-ui/index.html)
 
