@@ -72,7 +72,10 @@
 
 
 
-기술스택
+
+
+****기술스택****
+
 
 <br>프론트엔드: React, recoil, css
 <br>백엔드: Spring boot, Spring security, Mysql, JWT
