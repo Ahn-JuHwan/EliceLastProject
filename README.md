@@ -83,5 +83,5 @@
 
 
 
-![Main Screen](C:\Users\jaekyung\Desktop\erd.png)
+![ERD](erd.png)
 
