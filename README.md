@@ -80,13 +80,16 @@
 한 번 누를 시 좋아요 + 1
 <br>좋아요 누른 상태에서 누를 시 - 1
 
+##### 8. 쿠폰
+
+
 
 
 ## **기술스택**
 
 <br>프론트엔드: React, Recoil, CSS
 <br>백엔드: Spring boot, Spring security, Mysql, JWT
-<br>배포: Nginx, GCP
+<br>배포: Nginx, GCP, AWS S3
 
 
 
