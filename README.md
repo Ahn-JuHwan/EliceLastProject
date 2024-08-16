@@ -106,5 +106,5 @@
 ![wireframe](./campwireframe.JPG)
 
 ## 배포서버
-[Server](34.64.252.205)
+[Server](http://34.64.252.205)
 
