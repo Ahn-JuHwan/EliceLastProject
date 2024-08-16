@@ -103,6 +103,6 @@
 [Swagger](http://localhost:8080/swagger-ui/index.html)
 
 ## 와이어프레임
-![wireframe](/uploads/ec37d7d3947c462a52cabbc4a3a043c6/9팀_와이어프레임.png)
+![wireframe](/uploads/ec37d7d3947c462a52cabbc4a3a043c6/campwireframe.png)
 ## 배포서버
 
