@@ -94,7 +94,7 @@
 
 
 ## ERD
-![ERD](erd.png)
+![erd](/uploads/ec37d7d3947c462a52cabbc4a3a043c6/erd.png)
 
 ## Swagger
 [Swagger](http://localhost:8080/swagger-ui/index.html)
