@@ -103,6 +103,7 @@
 [Swagger](http://localhost:8080/swagger-ui/index.html)
 
 ## 와이어프레임
+![wireframe](./campwireframe.JPG)
 
 ## 배포서버
 [Server](34.64.252.205)
