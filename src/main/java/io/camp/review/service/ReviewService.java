@@ -2,6 +2,10 @@ package io.camp.review.service;
 
 import io.camp.campsite.model.entity.Campsite;
 import io.camp.campsite.repository.CampSiteRepository;
+import io.camp.common.exception.Campsite.CampsiteNotFoundException;
+import io.camp.common.exception.ExceptionCode;
+import io.camp.common.exception.review.ReviewNotAuthorException;
+import io.camp.common.exception.user.CustomException;
 import io.camp.like.service.LikeService;
 import io.camp.review.model.Review;
 import io.camp.review.model.dto.CreateReviewDto;
@@ -35,40 +39,34 @@ public class ReviewService {
 
     //리뷰 생성
     public ReviewDto createReview(Long campsiteId, CreateReviewDto createReviewDto, JwtUserDetails jwtUserDetails) {
-        User uesr = jwtUserDetails.getUser();
-
-        if (user == null) {
-            throw new RuntimeException("로그인한 사용자가 아닙니다.");
+        if (jwtUserDetails == null) {
+            throw new CustomException(ExceptionCode.USER_NOT_FOUND);
         }
+        User user = jwtUserDetails.getUser();
 
         Campsite campsite = campSiteRepository.findById(campsiteId)
-                .orElseThrow(() -> new RuntimeException("캠핑장을 찾을 수 없습니다."));
+                .orElseThrow(() -> new CampsiteNotFoundException("Campsite not found"));
 
         Review review = Review.builder()
                 .content(createReviewDto.getContent())
-                .user(uesr)
+                .user(user)
                 .campsite(campsite)
                 .build();
         Review savedReview = reviewRepository.save(review);
         return convertToDto(savedReview);
     }
 
-    //전체 리뷰 조회 (좋아요 순)
-    public Page<ReviewDto> getAllReviewLikeCountDesc(int page, int size) {
-        Pageable Pageable = PageRequest.of(page, size, Sort.by("likeCount").descending());
+    //전체 리뷰 조회
+    public Page<ReviewDto> getAllReviewSort(int page, int size, String type) {
+        System.out.println("type : " + type);
+        Pageable Pageable = PageRequest.of(page, size, Sort.by(type).descending());
         return reviewRepository.getAllReviewSort(Pageable);
     }
 
-    //전체 리뷰 조회 (최신 순)
-    public Page<ReviewDto> getAllReviewDesc(int page, int size) {
-        Pageable Pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return reviewRepository.getAllReviewSort(Pageable);
-    }
-
-    //캠핑장 전체 리뷰 조회 (최신 순)
+    //캠핑장 전체 리뷰 조회
     @Transactional(readOnly = true)
-    public Page<ReviewDto> getReview(Long campsiteId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+    public Page<ReviewDto> getReview(Long campsiteId, int page, int size, String type) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(type).descending());
         Page<ReviewDto> reviews = reviewRepository.getAllCampsiteReviewSort(campsiteId, pageable);
         return reviews;
     }
@@ -81,14 +79,14 @@ public class ReviewService {
     //리뷰 수정
     @Transactional
     public ReviewDto updateReview(Long reviewId, UpdateReviewDto updateReviewDto, JwtUserDetails jwtUserDetails) {
-        User user = jwtUserDetails.getUser();
-        if (user == null) {
-            throw new RuntimeException("로그인한 사용자가 아닙니다.");
+        if (jwtUserDetails == null) {
+            throw new CustomException(ExceptionCode.USER_NOT_FOUND);
         }
+        User user = jwtUserDetails.getUser();
 
         ReviewDto reviewDto = reviewRepository.getCampsiteReview(reviewId);
         if (reviewDto.getUserSeq() != user.getSeq()) {
-            throw new RuntimeException("작성자가 아닙니다.");
+            throw new ReviewNotAuthorException(ExceptionCode.REVIEW_NOT_AUTHOR);
         }
         reviewDto.setContent(updateReviewDto.getContent());
         reviewRepository.updateReview(reviewId, updateReviewDto.getContent());
@@ -99,14 +97,14 @@ public class ReviewService {
     //리뷰 삭제
     @Transactional
     public void deleteReview(Long reviewId, JwtUserDetails jwtUserDetails) {
-        User user = jwtUserDetails.getUser();
-        if (user == null) {
-            throw new RuntimeException("로그인한 사용자가 아닙니다.");
+        if (jwtUserDetails == null) {
+            throw new CustomException(ExceptionCode.USER_NOT_FOUND);
         }
+        User user = jwtUserDetails.getUser();
 
         ReviewDto reviewDto = reviewRepository.getCampsiteReview(reviewId);
         if (reviewDto.getUserSeq() != user.getSeq()) {
-            throw new RuntimeException("작성자가 아닙니다.");
+            throw new ReviewNotAuthorException(ExceptionCode.REVIEW_NOT_AUTHOR);
         }
         reviewRepository.deleteReview(reviewId);
     }
@@ -114,10 +112,10 @@ public class ReviewService {
     //리뷰 좋아요
     @Transactional
     public LikeReviewDto likeReview(Long reviewId, JwtUserDetails jwtUserDetails) {
-        User user = jwtUserDetails.getUser();
-        if (user == null) {
-            throw new RuntimeException("로그인 후 이용해주세요");
+        if (jwtUserDetails == null) {
+            throw new CustomException(ExceptionCode.USER_NOT_FOUND);
         }
+        User user = jwtUserDetails.getUser();
         likeService.isLike(reviewId, user);
         return reviewRepository.getLikeCount(reviewId);
     }

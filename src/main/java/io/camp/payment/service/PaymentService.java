@@ -10,7 +10,13 @@ import io.camp.campsite.service.SeasonService;
 import io.camp.campsite.service.SiteService;
 import io.camp.campsite.service.ZoneService;
 import io.camp.common.exception.ExceptionCode;
+import io.camp.common.exception.inventory.InventoryException;
 import io.camp.common.exception.payment.PaymentException;
+import io.camp.common.exception.reservation.ReservationException;
+import io.camp.coupon.model.dto.Coupon;
+import io.camp.coupon.service.CouponService;
+import io.camp.inventory.model.dto.InventoryDto;
+import io.camp.inventory.service.InventoryService;
 import io.camp.payment.model.Payment;
 import io.camp.payment.model.PaymentCancellation;
 import io.camp.payment.model.PaymentType;
@@ -34,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 
 
 @Slf4j
@@ -47,6 +54,8 @@ public class PaymentService {
     private final ZoneService zoneService;
     private final SeasonService seasonService;
     private final SiteService siteService;
+    private final InventoryService inventoryService;
+    private final CouponService couponService;
 
     private static ReservationPostDto getReservationPostDto(PaymentPostDto paymentPostDto, int reservationTotalPrice) {
         ReservationPostDto reservationPostDto = new ReservationPostDto();
@@ -62,6 +71,7 @@ public class PaymentService {
     public int calculationTotalPrice(PaymentPostDto dto){
         Site site = siteService.getSiteBySeq(dto.getSiteSeq());
         Long zoneSeq = site.getZone().getSeq();
+
         ZoneDto zone = zoneService.getZone(zoneSeq);
         Long campsiteSeq = zone.getCampSite();
 
@@ -96,6 +106,26 @@ public class PaymentService {
             seasonPrice += (dto.getAdults() - 2) * 10000;
         }
 
+        log.info("쿠폰 할인 금액 : " + dto.getCount());
+        log.info("쿠폰 seq : " + dto.getCouponSeq());
+        log.info("쿠폰 만료 날짜 : " + dto.getExpireDate());
+        log.info("인벤토리 seq : " + dto.getInvenSeq());
+        log.info("쿠폰 사용 여부 : " + dto.isUse());
+
+        LocalDate today = LocalDate.now();
+        if (!dto.isUse() && !today.isAfter(dto.getExpireDate())) {
+            log.info("쿠폰이 적용되기 전 값 : " + seasonPrice);
+            // 쿠폰이 % 할인 계산일 경우
+            //seasonPrice = seasonPrice - (seasonPrice * dto.getCount() / 100);
+
+            // 쿠폰이 금액 할인일 경우
+            seasonPrice = seasonPrice - dto.getCount();
+
+            log.info("쿠폰이 적용된 값 : " + seasonPrice);
+            InventoryDto inventoryDto = inventoryService.useCoupon(dto.getInvenSeq());
+        } else {
+            throw new InventoryException(ExceptionCode.INVENTORY_ALREADY_USE);
+        }
         return seasonPrice;
     }
 
@@ -120,25 +150,22 @@ public class PaymentService {
         payment.setReservation(reservation);
 
         User user = jwtUserDetails.getUser();
-        if (user == null || !payment.getCustomerEmail().equals(user.getEmail())
-                && !payment.getCustomerName().equals(user.getName())
-                && !payment.getCustomerPhoneNumber().equals(user.getPhoneNumber())) {
+        if (user == null || !payment.getCustomerEmail().equals(user.getEmail())) {
             throw new PaymentException(ExceptionCode.USER_INVALID);
         };
         payment.setUser(user);
         paymentRepository.save(payment);
     }
 
-    public boolean beforePaymentCancelCheck(PaymentCancelPostDto paymentCancelPostDto) {
-        LocalDate reserveCancelDate = LocalDate.now();
-        LocalDate reserveStartDate = paymentCancelPostDto.getReserveStartDate();
+    public void beforePaymentCancelCheck(PaymentCancelPostDto paymentCancelPostDto) {
+        LocalDate now = LocalDate.now();
+        LocalDate ReservationStartDate = paymentCancelPostDto.getReserveStartDate();
 
-        log.info("reserveCancelDate : {}", reserveCancelDate);
-        log.info("reserveStartDate : {}", reserveStartDate);
-        if (reserveCancelDate.isEqual(reserveStartDate) || reserveCancelDate.isAfter(reserveStartDate)) {
-            return false;
-        } else {
-            return true;
+        long DayUntilReservationStart = ChronoUnit.DAYS.between(now, ReservationStartDate);
+
+        if (DayUntilReservationStart <= 1) {
+            log.info("예약은 하루 전에는 예약을 취소 할 수 없습니다.");
+            throw new ReservationException(ExceptionCode.RESERVATION_CANNOT_BE_CANCELLED);
         }
     }
 

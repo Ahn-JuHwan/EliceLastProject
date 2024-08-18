@@ -32,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +57,16 @@ public class ReservationService {
         log.info("예약 생성 성공");
         reservation.setUser(user);
         reservation.setSite(site);
+
+        //기존 예약이 존재하는지 확인하는 과정.
+        ReservationExistenceDto dto = new ReservationExistenceDto();
+        dto.setReservationStartDate(reservation.getReserveStartDate());
+        dto.setReservationEndDate(reservation.getReserveEndDate());
+        dto.setSiteSeq(reservation.getSite().getSeq());
+
+         if(reservationRepository.checkReservationExistence(dto)){
+             throw new ReservationException(ExceptionCode.RESERVATION_ALREADY_EXIST);
+         }
 
         log.info(reservation.toString());
 
@@ -166,5 +177,15 @@ public class ReservationService {
                 .toList();
 
         return new PageImpl<>(dtos,reservations.getPageable(), reservations.getTotalElements());
+    }
+
+    @Transactional
+    public ReservationDto updateReservation(ReservationDto dto){
+        Reservation reservation = reservationRepository.findById(dto.getReservationId()).get();
+        reservation.setReservationState(dto.getReservationState());
+        reservation.setAdults(dto.getAdults());
+        reservation.setChildren(dto.getChildren());
+        reservation.setTotalPrice(dto.getTotalPrice());
+        return dto;
     }
 }
