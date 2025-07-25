@@ -41,8 +41,7 @@ public class MailController {
     })
     @PostMapping("/mailSend")
     public ResponseEntity<MailResponse> mailSend(@RequestParam("email") String email) {
-        int number = mailService.sendMail(email);
-        mailService.saveAuthCode(email, number);
+        mailService.requestAuthCode(email);
         return ResponseEntity.ok(MailResponse.success("인증 메일이 발송되었습니다."));
     }
 

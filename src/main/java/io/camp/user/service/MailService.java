@@ -8,6 +8,8 @@ import io.camp.user.model.email.AuthCode;
 import io.camp.user.repository.AuthCodeRepository;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import java.util.Optional;
 import java.util.Random;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class MailService {
 
@@ -26,15 +29,12 @@ public class MailService {
     private final AuthCodeRepository authCodeRepository;
 
     private static final String senderEmail = "ahnju1103@gmail.com";
-    private int number;
-
-    // 랜덤으로 숫자 생성
-    private void createNumber() {
-        number = (int) (Math.random() * 90000) + 100000;
+    private int generateCode() {
+        return (int) (Math.random() * 90000) + 100000;
     }
 
-    private MimeMessage createMail(String mail) {
-        createNumber();
+
+    private MimeMessage createMail(String mail, int code) {
         MimeMessage message = javaMailSender.createMimeMessage();
 
         try {
@@ -46,7 +46,7 @@ public class MailService {
             <h3>요청하신 인증 번호입니다.</h3>
             <h1>%s</h1>
             <h3>감사합니다.</h3>
-            """.formatted(number);
+            """.formatted(code);
 
             message.setText(body, "UTF-8", "html");
         } catch (MessagingException e) {
@@ -56,17 +56,29 @@ public class MailService {
         return message;
     }
 
-    @Transactional
-    public int sendMail(String mail) {
-        MimeMessage message = createMail(mail);
+    @Async
+    public int sendMail(String mail, int code) {
         try {
+            MimeMessage message = createMail(mail, code);
             javaMailSender.send(message);
         } catch (Exception e) {
+            log.error("인증 메일 발송 실패: email={}, code={}", mail, code, e);
             throw new MailSendFailedException(ExceptionCode.MAIL_SEND_FAILED); // 예외 처리
         }
-        authCodeRepository.deleteByEmail(mail);
-        return number;
+        return code;
     }
+    @Transactional
+    public void requestAuthCode(String email) {
+        int code = generateCode();
+        saveAuthCode(email, code);
+
+        try {
+            sendMail(email, code); // 메일 발송 실패해도 DB 저장 유지
+        } catch (Exception e) {
+            log.error("메일 발송 실패: email={}, code={}", email, code, e);
+        }
+    }
+
 
     @Transactional
     public void saveAuthCode(String email, int code) {
@@ -100,7 +112,7 @@ public class MailService {
         throw new VerifyCodeNotFoundException(ExceptionCode.VERIFY_CODE_NOTFOUND);
     }
 
-    @Scheduled(cron = "0 */3 * * * *") // 매 3분마다 실행
+    @Scheduled(fixedRate = 5 * 60 * 1000) //매 5분마다 실행
     public void deleteExpiredAuthCodes() {
         LocalDateTime now = LocalDateTime.now();
         authCodeRepository.deleteByExpiresAtBefore(now);
